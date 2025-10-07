@@ -16,11 +16,11 @@ def run_process(
 ):
     """
     Runs the given cmd Sequence in the process and wait to complete.
-    Return: subprocess.CompletedProcess Object
+    Return: subprocess.CompletedProcess Object.
     """
     if not isinstance(cmd, list):
         raise BFSExecutorError(
-            f"args value for 'cmd' parameter must be a 'list' type but got {cmd.type()}"
+            f"args value for 'cmd' parameter must be a 'list' type but got {cmd.type()}",
         )
 
     args = {
@@ -39,7 +39,7 @@ def run_process(
         args["capture_output"] = True
 
     try:
-        called_process_instance = subprocess.run(**args)
+        called_process_instance = subprocess.run(**args)  # noqa: PLW1510
 
     except FileNotFoundError as exc:
         raise BFSExecutorError(
@@ -47,21 +47,21 @@ def run_process(
                 "'Program' or 'Script' not found in target system.",
                 "Please validate cmd sequence provided.",
                 f"For more details refer the execution output {exc}",
-            )
+            ),
         ) from exc
     except subprocess.TimeoutExpired as exc:
         raise BFSExecutorError(
             (
                 "Process cmd Took long time complete.",
                 f"For more details refer the execution output {exc}",
-            )
+            ),
         ) from exc
 
     except subprocess.CalledProcessError as exc:
         raise BFSExecutorError(
-            ()(
+            (
                 "Process cmd return non zero return code.",
                 f"For more details refer the execution output {exc}",
-            )
+            ),
         ) from exc
     return called_process_instance
