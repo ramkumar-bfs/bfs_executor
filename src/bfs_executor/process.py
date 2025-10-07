@@ -1,9 +1,8 @@
 # Default imports
 import subprocess
-from future.utils import raise_from
 
 # Local imports
-from .exceptions import WrapperProcessException
+from .exceptions import BFSExecutorError
 
 
 def run_process(
@@ -20,7 +19,7 @@ def run_process(
     Return: subprocess.CompletedProcess Object
     """
     if not isinstance(cmd, list):
-        raise WrapperProcessException(
+        raise BFSExecutorError(
             f"args value for 'cmd' parameter must be a 'list' type but got {cmd.type()}"
         )
 
@@ -43,24 +42,26 @@ def run_process(
         called_process_instance = subprocess.run(**args)
 
     except FileNotFoundError as exc:
-        raise_from(
-            WrapperProcessException(
-                f"'Program' or 'Script' not found in target system. please validate cmd sequence provided. For more details refer the execution output {exc}"
-            ),
-            exc,
-        )
+        raise BFSExecutorError(
+            (
+                "'Program' or 'Script' not found in target system.",
+                "Please validate cmd sequence provided.",
+                f"For more details refer the execution output {exc}",
+            )
+        ) from exc
     except subprocess.TimeoutExpired as exc:
-        raise_from(
-            WrapperProcessException(
-                f"Process cmd Took long time complete. For more details refer the execution output {exc}"
-            ),
-            exc,
-        )
+        raise BFSExecutorError(
+            (
+                "Process cmd Took long time complete.",
+                f"For more details refer the execution output {exc}",
+            )
+        ) from exc
+
     except subprocess.CalledProcessError as exc:
-        raise_from(
-            WrapperProcessException(
-                f"Process cmd return non zero return code. For more details refer the execution output {exc}"
-            ),
-            exc,
-        )
+        raise BFSExecutorError(
+            ()(
+                "Process cmd return non zero return code.",
+                f"For more details refer the execution output {exc}",
+            )
+        ) from exc
     return called_process_instance

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bfs_executor"
+version = "0.1.0"
+description = "Wrapper module for python sub_process to run external process in pipeline."
+requires-python = ">=3.7"
+readme = "README.md"
+license = { text = "MIT" }
+
+# Runtime dependencies
+dependencies = []
+
+[tool.setuptools]
+package-dir = { "" = "src" }
