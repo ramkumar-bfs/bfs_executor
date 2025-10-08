@@ -46,10 +46,7 @@ def run_process(
     """
     # Validate input
     if not isinstance(cmd, list) or not all(isinstance(x, str) for x in cmd):
-        msg = (
-            f"'cmd' must be a list of strings, got type={type(cmd).__name__} "
-            f"value={cmd!r}"
-        )
+        msg = f"'cmd' must be a list of strings, got type={type(cmd).__name__} value={cmd!r}"
         raise BFSExecutorError(msg)
 
     # Compute effective flags
