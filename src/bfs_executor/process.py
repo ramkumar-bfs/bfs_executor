@@ -1,84 +1,105 @@
+"""
+Subprocess execution utilities for BFS executor.
+
+Provides a single entry point `run_process` to run commands safely with
+clear error handling suitable for production use.
+"""
+
+from __future__ import annotations
+
 # Default imports
 import subprocess
+from typing import IO
 
 # Local imports
 from .exceptions import BFSExecutorError
 
 
 def run_process(
-    cmd,
-    is_shell_cmd=None,
-    print_output=None,
-    output_stream=None,
-    error_stream=None,
-    raise_exception=None,
-    convert_response_text=None,
-):
+    cmd: list[str],
+    *,
+    is_shell_cmd: bool = False,
+    print_output: bool = False,
+    output_stream: IO[str] | None = None,
+    error_stream: IO[str] | None = None,
+    raise_exception: bool = True,
+    convert_response_text: bool = True,
+) -> subprocess.CompletedProcess:
     """
-    Runs the given cmd Sequence in the process and wait to complete.
+    Run the given command sequence in a subprocess and wait for completion.
 
     Args:
-        cmd (list): Command sequence to run in the process.
-        is_shell_cmd (bool, optional): If True, the command will be executed through the shell.
-            Defaults to False.
-        print_output (bool, optional): If True, the output will be printed to the console.
-            Defaults to False.
-        output_stream (file-like object, optional): Stream to which standard output will be directed.
-            Defaults to None.
-        error_stream (file-like object, optional): Stream to which standard error will be directed.
-            Defaults to None.
-        raise_exception (bool, optional): If True, exceptions will be raised for non-zero
+        cmd: Command sequence to run in the process (list of strings).
+        is_shell_cmd: If True, run the command through the shell. Defaults to False.
+        print_output: If True, stream output to provided streams/console. Defaults to False.
+        output_stream: Stream for standard output when print_output is True.
+        error_stream: Stream for standard error when print_output is True.
+        raise_exception: If True, raise for non-zero exit codes. Defaults to True.
+        convert_response_text: If True, return output as text. Defaults to True.
 
-    Return: subprocess.CompletedProcess Object.
+    Returns:
+        subprocess.CompletedProcess: The completed process instance.
+
+    Raises:
+        BFSExecutorError: If input is invalid or the process fails.
 
     """
-    if not isinstance(cmd, list):
+    # Validate input
+    if not isinstance(cmd, list) or not all(isinstance(x, str) for x in cmd):
         msg = (
-            f"args value for 'cmd' parameter must be a 'list' type but got {cmd.type()}"
+            f"'cmd' must be a list of strings, got type={type(cmd).__name__} "
+            f"value={cmd!r}"
         )
-        raise BFSExecutorError(
-            msg,
-        )
+        raise BFSExecutorError(msg)
 
-    args = {
+    # Compute effective flags
+    shell = is_shell_cmd
+    check = raise_exception
+    text = convert_response_text
+    stream_output = print_output
+
+    run_kwargs: dict = {
         "args": cmd,
-        "shell": is_shell_cmd or False,
-        "check": raise_exception or True,
-        "text": convert_response_text or True,
-        "universal_newlines": True,
+        "shell": shell,
+        # "check": check, # This is set below to allow capture_output logic
+        "text": text,
+        "universal_newlines": text,
     }
-    if print_output:
-        if output_stream:
-            args["stdout"] = output_stream
-        if error_stream:
-            args["stderr"] = error_stream
+
+    if stream_output:
+        if output_stream is not None:
+            run_kwargs["stdout"] = output_stream
+        if error_stream is not None:
+            run_kwargs["stderr"] = error_stream
     else:
-        args["capture_output"] = True
+        # Capture output when not streaming to simplify error reporting
+        run_kwargs["capture_output"] = True
 
     try:
-        called_process_instance = subprocess.run(**args)  # noqa: PLW1510
-
+        result = subprocess.run(check=check, **run_kwargs)
     except FileNotFoundError as exc:
-        raise BFSExecutorError(
-            (
-                "'Program' or 'Script' not found in target system.",
-                "Please validate cmd sequence provided.",
-                f"For more details refer the execution output {exc}",
-            ),
-        ) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise BFSExecutorError(
-            (
-                "Process cmd Took long time complete.",
-                f"For more details refer the execution output {exc}",
-            ),
-        ) from exc
-
+        msg = (
+            f"Program or script not found: {cmd[0]!r}. "
+            f"Validate the command sequence. Details: {exc}"
+        )
+        raise BFSExecutorError(msg) from exc
+    except subprocess.TimeoutExpired as exc:  # pragma: no cover (only if timeout used)
+        msg = f"Process command timed out. Details: {exc}"
+        raise BFSExecutorError(msg) from exc
     except subprocess.CalledProcessError as exc:
-        raise BFSExecutorError(
-            (
-                "Process cmd return non zero return code.",
-                f"For more details refer the execution output {exc}",
-            ),
-        ) from exc
-    return called_process_instance
+        # Include return code and any captured output to aid debugging
+        stdout = getattr(exc, "stdout", None)
+        stderr = getattr(exc, "stderr", None)
+        details = []
+        details.append(f"exit_code={exc.returncode}")
+        if stdout:
+            details.append(f"stdout={stdout!r}")
+        if stderr:
+            details.append(f"stderr={stderr!r}")
+        msg = "Process command returned non-zero exit code: " + ", ".join(details)
+        raise BFSExecutorError(msg) from exc
+    except Exception as exc:  # Defensive catch-all with context
+        msg = f"Unexpected error running process: {exc}"
+        raise BFSExecutorError(msg) from exc
+
+    return result
